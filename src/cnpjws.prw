@@ -17,6 +17,7 @@ class CNPJws
 	data cRet     as String
 	data oRet     as String
 	data aHeaders as Array
+	data lRet     as Logical
 
 	method new() CONSTRUCTOR
 	method consoleLog(cMsg,lErro)
@@ -38,14 +39,14 @@ Instância a classe
 /*/
 method new() class CNPJws
 
-	::cURL    := superGetMV('CN_URL',.f.,'https://data.cnpj.ws/')
+	::cURL    := superGetMV('CN_URL',.f.,'https://data.cnpj.ws')
 	::cToken  := superGetMV('CN_TOKEN',.f.,'')
 	::lVerb   := superGetMV('CN_VERBO',.f.,.t.) //Indica se ira imprimir todas as msgs no console
 	::cErro   := ''
 	::cRet    := ''
 	::oRet    := nil
 	::lRet    := .t.
-	::aHeaders:= {"Content-Type: application/json"}
+	::aHeaders:= {"Content-Type: application/json; charset=utf-8"}
 
 	::consoleLog('Classe instanciada com sucesso!')
 
@@ -61,28 +62,26 @@ Consultar CNPJ
 /*/
 method consultarCNPJ(cCNPJ) class CNPJws
 	local oRest	:= FWRest():New(::cURL)
-	local nX		:= 1
 	local aHd		:= {}
+	local cPath := ''
 
-	::cRt  := ''
+	::cRet := ''
 	::oRet := nil
 	::lRet := .t.
 	::cErro:= ''
 
 	aHd:= ::aHeaders
-	for nX:=1 to len(aHeader)
-		aAdd(aHd,aHeader[nX])
-	next
 
-	if empty(::cToken)
+	if !empty(::cToken)
 		aadd(aHd,{'x-access-token',::cToken})
+		cPath:= '/comercial/cnpj/'
+	else
+		cPath:= '/publica/cnpj/'
 	endif
 
-	if subStr(cCNPJ,1,1) <> '/'
-		cCNPJ:= '/' + cCNPJ
-	endif
+	cPath+=  cCNPJ
 
-	oRest:setPath(cCNPJ)
+	oRest:setPath(cPath)
 
 	if oRest:Get(aHd)
 		if !empty(oRest:GetResult())
@@ -219,20 +218,20 @@ return ::cErro
 
 user function tstCNPJ()
 	local oCNPJ:= nil
+	local oJSON:= nil
 
 	RpcSetType(3)
 	if !RpcSetEnv('99','01')
 		return
 	endif
 
+	tlpp.environment.getIncludesTLPP()
+
 	//Instancia a classe
 	oCNPJ:= CNPJws():new()
 
-	if oCNPJ:consultarCNPJ('00008123705034')
-
-	else
-		conout(oCNPJ:getError())
-		return
+	if oCNPJ:consultarCNPJ('40154884000153')
+		oJSON:= oCNPJ:getResponse()
 	endif
 
 	RPCClearEnv()
