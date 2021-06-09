@@ -1,6 +1,8 @@
 #include 'totvs.ch'
 #include 'protheus.ch'
 
+//namespace tlpp.cnpjws
+
 /*/{Protheus.doc} CNPJws
 Classe de integraçao com a API do CNPJ.ws
 @type class
@@ -35,13 +37,16 @@ Instância a classe
 @version 1.0  
 @author Carlos Tirabassi
 @since 07/06/2021
+@param lTest, logical, Indica se esta sendo chamado pela rotina de testes
 @return object, Objeto CNPJ.ws
 /*/
-method new() class CNPJws
+method new(lTest) class CNPJws
 
-	::cURL    := superGetMV('CN_URL',.f.,'https://data.cnpj.ws')
-	::cToken  := superGetMV('CN_TOKEN',.f.,'')
-	::lVerb   := superGetMV('CN_VERBO',.f.,.t.) //Indica se ira imprimir todas as msgs no console
+	default lTest:= .f.
+
+	::cURL    := 'https://data.cnpj.ws'
+	::cToken  := if(lTest, '', superGetMV('CN_TOKEN',.f.,''))
+	::lVerb   := if(lTest, .t., superGetMV('CN_VERBO',.f.,.t.)) //Indica se ira imprimir todas as msgs no console
 	::cErro   := ''
 	::cRet    := ''
 	::oRet    := nil

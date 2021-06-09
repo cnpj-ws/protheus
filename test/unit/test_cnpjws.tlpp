@@ -1,0 +1,48 @@
+#include "tlpp-core.th"
+#include "unit_test.th"
+
+namespace   test.unit.cnpjws
+Using Namespace tlpp.engine.test
+Using Namespace tlpp.cnpjws
+
+@TestFixture(owner='cnpjws')
+class test_CNPJws
+	private data oCNPJws
+	private data lTest
+	private data lExpected
+
+	public method new()     constructor
+
+	// Setups
+	@Setup()
+	public method SetAll()
+
+	// Tests
+	@Test('Consultar com sucesso CNPJ valido')
+	public method FirstTest()
+
+	@Test('Nao deve encontrar CNPJ invalido')
+	public method SecondTest()
+
+endclass
+
+method new() class test_CNPJws
+	::oCNPJws:= nil
+return self
+
+method SetAll() class test_CNPJws
+	::oCNPJws:= CNPJws():new(.t.)
+return .T.
+
+method FirstTest() class test_CNPJws
+	::lTest 		:= ::oCNPJws:consultarCNPJ('40154884000153')
+	::lExpected	:= .t.
+	assertEquals( 'CNPJ valido', ::lTest, ::lExpected )
+return .T.
+
+method SecondTest() class test_CNPJws
+	::lTest 		:= ::oCNPJws:consultarCNPJ('90154884000153')
+	::lExpected := .f.
+	assertEquals( 'CNPJ invalido', ::lTest, ::lExpected )
+return .T.
+
