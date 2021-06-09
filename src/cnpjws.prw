@@ -1,8 +1,6 @@
 #include 'totvs.ch'
 #include 'protheus.ch'
 
-//namespace tlpp.cnpjws
-
 /*/{Protheus.doc} CNPJws
 Classe de integraçao com a API do CNPJ.ws
 @type class
