@@ -18,10 +18,10 @@ class test_CNPJws
 	public method SetAll()
 
 	// Tests
-	@Test('Consultar com sucesso CNPJ valido')
+	@Test('Consultar com sucesso um CNPJ valido')
 	public method FirstTest()
 
-	@Test('Nao deve encontrar CNPJ invalido')
+	@Test('Nao deve encontrar um CNPJ invalido')
 	public method SecondTest()
 
 endclass

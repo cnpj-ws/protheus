@@ -228,8 +228,6 @@ user function tstCNPJ()
 		return
 	endif
 
-	tlpp.environment.getIncludesTLPP()
-
 	//Instancia a classe
 	oCNPJ:= CNPJws():new()
 
