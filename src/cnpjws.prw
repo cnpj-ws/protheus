@@ -76,7 +76,7 @@ method consultarCNPJ(cCNPJ) class CNPJws
 	aHd:= ::aHeaders
 
 	if !empty(::cToken)
-		aadd(aHd,{'x-access-token',::cToken})
+		aadd(aHd,{'x_api_token',::cToken})
 		cPath:= '/comercial/cnpj/'
 	else
 		cPath:= '/publica/cnpj/'
