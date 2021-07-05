@@ -71,6 +71,11 @@ user function cnpj(cTab,cCNPJ)
 				Endif
 
 				M->A1_NREDUZ := oJSON['estabelecimento']['nome_fantasia']
+
+				if empty(M->A1_NREDUZ) //Caso nao possua nome fantasia
+					M->A1_NREDUZ := avKey(cRet, 'A1_NREDUZ')
+				endif
+
 				If ExistTrigger('A1_NREDUZ')
 					RunTrigger(1,Nil,Nil,,'A1_NREDUZ')
 				Endif
@@ -170,7 +175,11 @@ user function cnpj(cTab,cCNPJ)
 
 				oModel:SetValue('SA2MASTER','A2_CODPAIS', oJSON['estabelecimento']['pais']['id'])
 
-				oModel:SetValue('SA2MASTER','A2_NREDUZ',oJSON['estabelecimento']['nome_fantasia'])
+				if !empty(oJSON['estabelecimento']['nome_fantasia'])
+					oModel:SetValue('SA2MASTER','A2_NREDUZ',oJSON['estabelecimento']['nome_fantasia'])
+				else
+					oModel:SetValue('SA2MASTER','A2_NREDUZ',avKey(cRet, 'A2_NREDUZ'))
+				endif
 
 				oModel:SetValue('SA2MASTER','A2_CEP', oJSON['estabelecimento']['cep'])
 
