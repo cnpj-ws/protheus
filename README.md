@@ -29,7 +29,7 @@ local oCNPJ:= CNPJws():new()
 
 if oCNPJ:consultarCNPJ('40154884000153')
   oRet:= oCNPJ:getResponse()
-  conout('A razão social da empresa é ' + oRet['razao_social']
+  conout('A razão social da empresa é ' + oRet['razao_social'])
 else
   conout(oCNPJ:getError())
 endif
