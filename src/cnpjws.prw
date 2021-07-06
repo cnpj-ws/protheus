@@ -2,13 +2,7 @@
 #include 'protheus.ch'
 
 /*/{Protheus.doc} CNPJws
-Classe de integraçao com a API do CNPJ.ws. Exemplo de cadastro do gatilho:
-Campo				: A1_CGC ou A2_CGC
-Cnt. Dominio: A1_NOME ou A2_NOME
-Tipo				: 1
-Regra				: u_cnpj('SA1',M->A1_CGC) ou u_cnpj('SA2',M->A2_CGC) 
-Posiciona		: 2
-Condicao		: !empty(M->A1_CGC) ou !empty(M->A2_CGC)
+Classe de integraçao com a API do CNPJ.ws.
 @type class
 @version 1.0 
 @author Carlos Tirabassi

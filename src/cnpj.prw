@@ -1,7 +1,13 @@
 #include 'totvs.ch'
 
 /*/{Protheus.doc} cnpj
-Gatilho para o cadastro de cliente e fornecedor
+Gatilho para o cadastro de cliente e fornecedor. Exemplo de cadastro do gatilho:
+Campo				: A1_CGC ou A2_CGC
+Cnt. Dominio: A1_NOME ou A2_NOME
+Tipo				: 1
+Regra				: u_cnpj('SA1',M->A1_CGC) ou u_cnpj('SA2',M->A2_CGC) 
+Posiciona		: 2
+Condicao		: !empty(M->A1_CGC) ou !empty(M->A2_CGC)
 @type function
 @version 1.0 
 @author Carlos Tirabassi
@@ -11,6 +17,20 @@ Gatilho para o cadastro de cliente e fornecedor
 @return character, razão social
 /*/
 user function cnpj(cTab,cCNPJ)
+	local aArea:= getArea()
+	local cRet := ''
+
+	if isBlind()
+		cRet:= consulta(cTab,cCNPJ)
+	else
+		FWMsgRun(,{||cRet:= consulta(cTab,cCNPJ)},'CNPJ.ws','Consultando...')
+	endif
+
+	restArea(aArea)
+
+return cRet
+
+static function consulta(cTab,cCNPJ)
 	local oCNPJws:= CNPJws():new()
 	local oJSON  := nil
 	local nX     := 1
@@ -65,10 +85,23 @@ user function cnpj(cTab,cCNPJ)
 					RunTrigger(1,Nil,Nil,,'A1_CNAE')
 				Endif
 
-				M->A1_CODPAIS	:= oJSON['estabelecimento']['pais']['id']
-				If ExistTrigger('A1_CODPAIS')
-					RunTrigger(1,Nil,Nil,,'A1_CODPAIS')
-				Endif
+				if !empty(oJSON['estabelecimento']['pais']['id'])
+					CCH->(dbSetOrder(1))
+					if CCH->(dbSeek(xFilial('CCH')+ '0' + oJSON['estabelecimento']['pais']['id'] ))
+						M->A1_CODPAIS	:=  CCH->CCH_CODIGO
+						If ExistTrigger('A1_CODPAIS')
+							RunTrigger(1,Nil,Nil,,'A1_CODPAIS')
+						Endif
+					endif
+
+					SYA->(dbSetOrder(2))
+					if SYA->(dbSeek(xFilial('SYA')+ upper(oJSON['estabelecimento']['pais']['nome'])))
+						M->A1_PAIS	:= SYA->YA_CODGI
+						If ExistTrigger('A1_PAIS')
+							RunTrigger(1,Nil,Nil,,'A1_PAIS')
+						Endif
+					endif
+				endif
 
 				M->A1_NREDUZ := oJSON['estabelecimento']['nome_fantasia']
 
@@ -173,7 +206,17 @@ user function cnpj(cTab,cCNPJ)
 
 				oModel:SetValue('SA2MASTER','A2_TIPO', 'J')
 
-				oModel:SetValue('SA2MASTER','A2_CODPAIS', oJSON['estabelecimento']['pais']['id'])
+				if !empty(oJSON['estabelecimento']['pais']['id'])
+					CCH->(dbSetOrder(1))
+					if CCH->(dbSeek(xFilial('CCH') + '0' + oJSON['estabelecimento']['pais']['id']))
+						oModel:SetValue('SA2MASTER','A2_CODPAIS', allTrim(CCH->CCH_CODIGO))
+					endif
+
+					SYA->(dbSetOrder(2))
+					if SYA->(dbSeek(xFilial('SYA')+ upper(oJSON['estabelecimento']['pais']['nome'])))
+						oModel:SetValue('SA2MASTER','A2_PAIS', allTrim(SYA->YA_CODGI))
+					endif
+				endif
 
 				if !empty(oJSON['estabelecimento']['nome_fantasia'])
 					oModel:SetValue('SA2MASTER','A2_NREDUZ',oJSON['estabelecimento']['nome_fantasia'])
