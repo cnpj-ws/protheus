@@ -42,8 +42,8 @@ method new(lTest) class CNPJws
 
 	default lTest:= .f.
 
-	::cURL    := 'https://data.cnpj.ws'
 	::cToken  := if(lTest, '', superGetMV('CN_TOKEN',.f.,''))
+	::cURL    := if(empty(::cToken),'https://publica.cnpj.ws','https://comercial.cnpj.ws')
 	::lVerb   := if(lTest, .t., superGetMV('CN_VERBO',.f.,.t.)) //Indica se ira imprimir todas as msgs no console
 	::cErro   := ''
 	::cRet    := ''
@@ -66,7 +66,7 @@ Consultar CNPJ
 method consultarCNPJ(cCNPJ) class CNPJws
 	local oRest	:= FWRest():New(::cURL)
 	local aHd		:= {}
-	local cPath := ''
+	local cPath := '/cnpj/'
 
 	::cRet := ''
 	::oRet := nil
@@ -77,12 +77,9 @@ method consultarCNPJ(cCNPJ) class CNPJws
 
 	if !empty(::cToken)
 		aadd(aHd,'x_api_token: ' + ::cToken)
-		cPath:= '/comercial/cnpj/'
-	else
-		cPath:= '/publica/cnpj/'
 	endif
 
-	cPath+=  cCNPJ
+	cPath+= allTrim(cCNPJ)
 
 	oRest:setPath(cPath)
 
