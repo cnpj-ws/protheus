@@ -11,7 +11,7 @@ Exemplo de Consulta de CNPJ via API, abaixo a descrição dos fontes:
 |Fonte                        |Descrição|
 |-----------------------------|---------|
 |`/src/cnpjws.prw`            |Classe de Integração em ADVPL com o CNPJ.ws|
-|`/src/cnpj.prw`              |Fonte para utilizar como gatilho no cadastro de fornecedores e clientes|
+|`/src/getcnpj.prw`           |Fonte para utilizar como gatilho no cadastro de fornecedores e clientes|
 |`/test/unit/test_cnpjws.tlpp`|Testes|
 
 

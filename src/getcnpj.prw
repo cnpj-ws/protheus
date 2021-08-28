@@ -1,6 +1,6 @@
 #include 'totvs.ch'
 
-/*/{Protheus.doc} cnpj
+/*/{Protheus.doc} getCNPJ
 Gatilho para o cadastro de cliente e fornecedor. Exemplo de cadastro do gatilho:
 Campo				: A1_CGC ou A2_CGC
 Cnt. Dominio: A1_NOME ou A2_NOME
@@ -16,7 +16,7 @@ Condicao		: !empty(M->A1_CGC) ou !empty(M->A2_CGC)
 @param cCNPJ, character, CNPJ
 @return character, razão social
 /*/
-user function cnpj(cTab,cCNPJ)
+user function getCNPJ(cTab,cCNPJ)
 	local aArea:= getArea()
 	local cRet := ''
 
