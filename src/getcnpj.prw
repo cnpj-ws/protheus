@@ -172,9 +172,9 @@ static function consulta(cTab,cCNPJ)
 					RunTrigger(1,Nil,Nil,,'A1_SIMPNAC')
 				Endif
 
-				for nX:=1 to len(oJSON['estabelecimento']['inscricoes_estatudais'])
-					if oJSON['estabelecimento']['estado']['id'] == oJSON['estabelecimento']['inscricoes_estatudais'][nX]['estado']['id']
-						M->A1_INSCR:= oJSON['estabelecimento']['inscricoes_estatudais'][nX]['inscricao_estadual']
+				for nX:=1 to len(oJSON['estabelecimento']['inscricoes_estaduais'])
+					if oJSON['estabelecimento']['estado']['id'] == oJSON['estabelecimento']['inscricoes_estaduais'][nX]['estado']['id']
+						M->A1_INSCR:= oJSON['estabelecimento']['inscricoes_estaduais'][nX]['inscricao_estadual']
 						If ExistTrigger('A1_INSCR')
 							RunTrigger(1,Nil,Nil,,'A1_INSCR')
 						Endif
@@ -250,9 +250,9 @@ static function consulta(cTab,cCNPJ)
 					oModel:SetValue('SA2MASTER','A2_SIMPNAC', '2')
 				endif
 
-				for nX:=1 to len(oJSON['estabelecimento']['inscricoes_estatudais'])
-					if oJSON['estabelecimento']['estado']['id'] == oJSON['estabelecimento']['inscricoes_estatudais'][nX]['estado']['id']
-						oModel:SetValue('SA2MASTER','A2_INSCR', oJSON['estabelecimento']['inscricoes_estatudais'][nX]['inscricao_estadual'])
+				for nX:=1 to len(oJSON['estabelecimento']['inscricoes_estaduais'])
+					if oJSON['estabelecimento']['estado']['id'] == oJSON['estabelecimento']['inscricoes_estaduais'][nX]['estado']['id']
+						oModel:SetValue('SA2MASTER','A2_INSCR', oJSON['estabelecimento']['inscricoes_estaduais'][nX]['inscricao_estadual'])
 						EXIT
 					endif
 				next
