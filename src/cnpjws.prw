@@ -51,6 +51,10 @@ method new(lTest) class CNPJws
 	::lRet    := .t.
 	::aHeaders:= {"Content-Type: application/json; charset=utf-8"}
 
+	if !empty(::cToken)
+		aAdd(::aHeaders,'x_api_token: ' + allTrim(::cToken))
+	endif
+
 	::consoleLog('Classe instanciada com sucesso!')
 
 return Self
@@ -65,7 +69,6 @@ Consultar CNPJ
 /*/
 method consultarCNPJ(cCNPJ) class CNPJws
 	local oRest	:= FWRest():New(::cURL)
-	local aHd		:= {}
 	local cPath := '/cnpj/'
 
 	::cRet := ''
@@ -73,17 +76,11 @@ method consultarCNPJ(cCNPJ) class CNPJws
 	::lRet := .t.
 	::cErro:= ''
 
-	aHd:= ::aHeaders
-
-	if !empty(::cToken)
-		aadd(aHd,'x_api_token: ' + ::cToken)
-	endif
-
 	cPath+= allTrim(cCNPJ)
 
 	oRest:setPath(cPath)
 
-	if oRest:Get(aHd)
+	if oRest:Get(::aHeaders)
 		if !empty(oRest:GetResult())
 			::cRet:= FWNoAccent(DecodeUtf8(oRest:GetResult()))
 
