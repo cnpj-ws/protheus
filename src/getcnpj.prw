@@ -17,7 +17,7 @@ Condicao		: !empty(M->A1_CGC) ou !empty(M->A2_CGC)
 @return character, razão social
 /*/
 user function getCNPJ(cTab,cCNPJ)
-	local aArea:= getArea()
+	local aArea:= {CC3->(getArea()), SYA->(getArea()), getArea()}
 	local cRet := ''
 
 	default cTab := 'SA1'
@@ -33,7 +33,15 @@ user function getCNPJ(cTab,cCNPJ)
 		endif
 	endif
 
-	restArea(aArea)
+	aEval(aArea, {|x| RestArea(x)})
+
+	if Empty(cRet)
+		if "A1_" $ ReadVar()
+			Left(M->A1_NOME, TAMSX3("A1_NOME")[1])
+		else
+			Left(M->A2_NOME, TAMSX3("A2_NOME")[1])
+		endif
+	endif
 
 return cRet
 
