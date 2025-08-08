@@ -17,7 +17,7 @@ user function SyncCNPJ(aEmp)
 	default aEmp:= {'01','010001'}
 
 	if !rpcSetEnv(aEmp[1], aEmp[2])
-		conaut('CNPJws - SyncCNPJ: Erro ao setar ambiente')
+		conout('CNPJws - SyncCNPJ: Erro ao setar ambiente')
 		return
 	endif
 
