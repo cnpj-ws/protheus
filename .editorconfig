@@ -1,0 +1,25 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+# top-most EditorConfig file
+root = true
+
+[*]
+end_of_line = crlf
+charset = utf-8
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# Fontes ADVPL/TLPP - padrão Protheus: Windows-1252 (latin1), CRLF e TAB
+[*.{prw,prx,prg,ch,tlpp,th,aph,apw,ahu,apl,ppx,ppo}]
+charset = latin1
+indent_style = tab
+indent_size = 4
+tab_width = 4
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{json,yml,yaml}]
+indent_size = 2

@@ -1,15 +1,20 @@
 #include 'totvs.ch'
+#include 'fwmvcdef.ch'
 
 /*/{Protheus.doc} getCNPJ
 Gatilho para o cadastro de cliente e fornecedor. Exemplo de cadastro do gatilho:
 Campo				: A1_CGC ou A2_CGC
 Cnt. Dominio: A1_NOME ou A2_NOME
 Tipo				: 1
-Regra				: u_getCNPJ('SA1',M->A1_CGC) ou u_getCNPJ('SA2',M->A2_CGC) 
+Regra				: u_getCNPJ('SA1',M->A1_CGC) ou u_getCNPJ('SA2',M->A2_CGC)
 Posiciona		: 2
-Condicao		: !empty(M->A1_CGC) ou !empty(M->A2_CGC)
+Condicao		: Len(AllTrim(M->A1_CGC)) == 14 ou Len(AllTrim(M->A2_CGC)) == 14
+
+Funciona tanto com o cadastro em MVC (MATA020 / CRMA980) quanto com o cadastro
+tradicional (MATA030 sem MVC), preenchendo os campos pelo model ativo ou pelas
+variaveis de memoria.
 @type function
-@version 1.0 
+@version 1.1
 @author Carlos Tirabassi
 @since 08/06/2021
 @param cTab, character, Passar a tabela (SA1 ou SA2)
@@ -17,264 +22,265 @@ Condicao		: !empty(M->A1_CGC) ou !empty(M->A2_CGC)
 @return character, razão social
 /*/
 user function getCNPJ(cTab,cCNPJ)
-	local aArea:= {CC3->(getArea()), SYA->(getArea()), getArea()}
-	local cRet := ''
+	local aArea   := {CC3->(getArea()), CCH->(getArea()), SYA->(getArea()), getArea()}
+	local cRet    := ''
+	local cCpoNome:= ''
+	local cMaster := ''
+	local oModel  := nil
 
 	default cTab := 'SA1'
 	default cCNPJ:= ''
 
-	cCNPJ:= allTrim(cCNPJ)
+	cTab    := upper(allTrim(cTab))
+	cCNPJ   := allTrim(cCNPJ)
+	cCpoNome:= if(cTab == 'SA2', 'A2_NOME', 'A1_NOME')
+	cMaster := cTab + 'MASTER'
+	oModel  := getModel(cMaster)
 
-	if !empty(cTab) .and. len(cCNPJ) == 14
+	if cTab $ 'SA1|SA2' .and. len(cCNPJ) == 14 .and. confirma(oModel)
 		if isBlind()
-			cRet:= consulta(cTab,cCNPJ)
+			cRet:= consulta(cTab,cCNPJ,oModel,cMaster)
 		else
-			FWMsgRun(,{||cRet:= consulta(cTab,cCNPJ)},'CNPJ.ws','Consultando...')
+			FWMsgRun(,{||cRet:= consulta(cTab,cCNPJ,oModel,cMaster)},'CNPJ.ws','Consultando...')
 		endif
 	endif
 
 	aEval(aArea, {|x| RestArea(x)})
 
-	if Empty(cRet)
-		if "A1_" $ ReadVar()
-			Left(M->A1_NOME, TAMSX3("A1_NOME")[1])
-		else
-			Left(M->A2_NOME, TAMSX3("A2_NOME")[1])
+	//Se nao conseguiu consultar, mantem o nome que ja estava no cadastro
+	if empty(cRet)
+		cRet:= getCampo(oModel,cMaster,cCpoNome)
+	endif
+
+return PadR(cRet, TamSX3(cCpoNome)[1])
+
+static function consulta(cTab,cCNPJ,oModel,cMaster)
+	local oCNPJws := CNPJws():new()
+	local oJSON   := nil
+	local oEst    := nil
+	local oPais   := nil
+	local oIE     := nil
+	local aCampos := {}
+	local aErros  := {}
+	local cPre    := if(cTab == 'SA2', 'A2_', 'A1_')
+	local cRet    := ''
+	local cSituac := ''
+	local cEnd    := ''
+	local nX      := 0
+
+	if !oCNPJws:consultarCNPJ(cCNPJ)
+		aviso('Erro ao consultar CNPJ: ' + oCNPJws:getError())
+		return ''
+	endif
+
+	oJSON  := oCNPJws:getResponse()
+	oEst   := jObj(oJSON,'estabelecimento')
+	cRet   := jStr(oJSON,'razao_social')
+	cSituac:= jStr(oEst,'situacao_cadastral')
+
+	if valType(oEst) <> 'J'
+		aviso('Retorno da consulta do CNPJ ' + cCNPJ + ' sem os dados do estabelecimento.')
+		return cRet
+	endif
+
+	if cSituac <> 'Ativa'
+		aviso(cCNPJ + ': A situação cadastral da empresa junto a SEFAZ é ' + cSituac)
+	endif
+
+	aAdd(aCampos, {cPre + 'MSBLQL', if(cSituac == 'Ativa','2','1')})
+	aAdd(aCampos, {if(cTab == 'SA2', 'A2_TIPO', 'A1_PESSOA'), 'J'})
+
+	if gravaCNAE(jObj(oEst,'atividade_principal'))
+		aAdd(aCampos, {cPre + 'CNAE', jStr(jObj(oEst,'atividade_principal'),'id')})
+	endif
+
+	oPais:= jObj(oEst,'pais')
+	if !empty(jStr(oPais,'id'))
+		CCH->(dbSetOrder(1))
+		if CCH->(dbSeek(xFilial('CCH') + '0' + jStr(oPais,'id')))
+			aAdd(aCampos, {cPre + 'CODPAIS', allTrim(CCH->CCH_CODIGO)})
 		endif
+
+		SYA->(dbSetOrder(2))
+		if SYA->(dbSeek(xFilial('SYA') + upper(jStr(oPais,'nome'))))
+			aAdd(aCampos, {cPre + 'PAIS', allTrim(SYA->YA_CODGI)})
+		endif
+	endif
+
+	aAdd(aCampos, {cPre + 'NREDUZ', if(empty(jStr(oEst,'nome_fantasia')), cRet, jStr(oEst,'nome_fantasia'))})
+
+	//CEP antes do endereco, pois pode ter gatilho que preenche endereco pelo CEP
+	aAdd(aCampos, {cPre + 'CEP'    , jStr(oEst,'cep')})
+	aAdd(aCampos, {cPre + 'EST'    , jStr(jObj(oEst,'estado'),'sigla')})
+	aAdd(aCampos, {cPre + 'COD_MUN', substr(jStr(jObj(oEst,'cidade'),'ibge_id'),3,5)})
+	aAdd(aCampos, {cPre + 'BAIRRO' , jStr(oEst,'bairro')})
+
+	cEnd:= jStr(oEst,'logradouro')
+	if !empty(jStr(oEst,'numero'))
+		cEnd += ', ' + jStr(oEst,'numero')
+	endif
+	aAdd(aCampos, {cPre + 'END'    , cEnd})
+	aAdd(aCampos, {cPre + 'COMPLEM', jStr(oEst,'complemento')})
+	aAdd(aCampos, {cPre + 'DDD'    , jStr(oEst,'ddd1')})
+	aAdd(aCampos, {cPre + 'TEL'    , jStr(oEst,'telefone1')})
+
+	if !empty(jStr(oEst,'fax'))
+		aAdd(aCampos, {cPre + 'FAX', jStr(oEst,'ddd_fax') + jStr(oEst,'fax')})
+	endif
+
+	aAdd(aCampos, {cPre + 'EMAIL'  , jStr(oEst,'email')})
+	aAdd(aCampos, {cPre + 'SIMPNAC', if(jStr(jObj(oJSON,'simples'),'simples') == 'Sim', '1', '2')})
+
+	if valType(oEst['inscricoes_estaduais']) == 'A'
+		for nX:= 1 to len(oEst['inscricoes_estaduais'])
+			oIE:= oEst['inscricoes_estaduais'][nX]
+			if jStr(jObj(oIE,'estado'),'id') == jStr(jObj(oEst,'estado'),'id')
+				aAdd(aCampos, {cPre + 'INSCR', jStr(oIE,'inscricao_estadual')})
+				exit
+			endif
+		next
+	endif
+
+	for nX:= 1 to len(aCampos)
+		//Nao sobrescreve o cadastro com valores que a API nao retornou
+		if !empty(aCampos[nX][2]) .and. !setCampo(oModel,cMaster,aCampos[nX][1],aCampos[nX][2])
+			aAdd(aErros, aCampos[nX][1])
+		endif
+	next
+
+	if !empty(aErros)
+		aviso('Os campos abaixo não foram preenchidos por falha na validação: ' + CRLF + arrTokStr(aErros, ', '))
 	endif
 
 return cRet
 
-static function consulta(cTab,cCNPJ)
-	local oCNPJws:= CNPJws():new()
-	local oJSON  := nil
-	local nX     := 1
-	local cRet   := ''
-	local lJob   := isBlind()
-	local oModel := nil
+/*/{Protheus.doc} gravaCNAE
+Inclui o CNAE na CC3 caso ainda nao exista
+/*/
+static function gravaCNAE(oAtiv)
+	local cCod:= jStr(oAtiv,'id')
 
-	if oCNPJws:consultarCNPJ(cCNPJ)
-		oJSON:= oCNPJws:getResponse()
+	if empty(cCod)
+		return .f.
+	endif
 
-		cRet:= oJSON['razao_social']
+	CC3->(dbSetOrder(1))
+	if !CC3->(dbSeek(xFilial('CC3') + cCod))
+		reclock('CC3',.t.)
+		CC3->CC3_FILIAL	:= xFilial('CC3')
+		CC3->CC3_COD		:= cCod
+		CC3->CC3_DESC		:= upper(jStr(oAtiv,'descricao'))
+		CC3->CC3_CSECAO	:= jStr(oAtiv,'secao')
+		CC3->CC3_CDIVIS	:= jStr(oAtiv,'divisao')
+		CC3->CC3_CGRUPO	:= strTran(jStr(oAtiv,'grupo'),'.')
+		CC3->CC3_CCLASS	:= strTran(strTran(jStr(oAtiv,'classe'),'.'),'-')
+		CC3->(msUnlock())
+	endif
 
-		if oJSON['estabelecimento']['situacao_cadastral'] <> 'Ativa'
-			if lJob
-				conout(cCNPJ + ': A situação cadastral da empresa junto a SEFAZ é ' + oJSON['estabelecimento']['situacao_cadastral'])
-			else
-				alert('A situação cadastral da empresa junto a SEFAZ é ' + oJSON['estabelecimento']['situacao_cadastral'])
-			endif
+return .t.
+
+/*/{Protheus.doc} getModel
+Retorna o model MVC ativo caso seja o cadastro da tabela (SA1MASTER/SA2MASTER)
+/*/
+static function getModel(cMaster)
+	local oModel:= FWModelActive()
+
+	if valType(oModel) == 'O' .and. oModel:isActive() .and. valType(oModel:GetModel(cMaster)) == 'O'
+		return oModel
+	endif
+
+return nil
+
+/*/{Protheus.doc} confirma
+Na alteracao pede confirmacao antes de sobrescrever os dados do cadastro
+/*/
+static function confirma(oModel)
+	local lAltera:= .f.
+
+	if isBlind()
+		return .t.
+	endif
+
+	if oModel <> nil
+		lAltera:= oModel:GetOperation() == MODEL_OPERATION_UPDATE
+	elseif type('ALTERA') == 'L'
+		lAltera:= ALTERA
+	endif
+
+return !lAltera .or. MsgYesNo('Deseja atualizar os dados do cadastro com as informações do CNPJ.ws?','CNPJ.ws')
+
+/*/{Protheus.doc} getCampo
+Le o valor do campo pelo model MVC ou pela variavel de memoria
+/*/
+static function getCampo(oModel,cMaster,cCampo)
+	local xRet:= ''
+
+	if oModel <> nil
+		xRet:= oModel:GetValue(cMaster,cCampo)
+	elseif type('M->' + cCampo) <> 'U'
+		xRet:= &('M->' + cCampo)
+	endif
+
+return if(valType(xRet) == 'C', xRet, '')
+
+/*/{Protheus.doc} setCampo
+Grava o valor no campo pelo model MVC ou pela variavel de memoria (executando os gatilhos)
+@return logical, .T. se gravou
+/*/
+static function setCampo(oModel,cMaster,cCampo,xValor)
+	local lOk:= .t.
+
+	if empty(GetSX3Cache(cCampo,'X3_CAMPO'))
+		return .t. //Campo nao existe no dicionario
+	endif
+
+	if valType(xValor) == 'C'
+		xValor:= PadR(xValor, TamSX3(cCampo)[1])
+	endif
+
+	if oModel <> nil
+		lOk:= oModel:SetValue(cMaster,cCampo,xValor)
+		if !lOk
+			oModel:GetErrorMessage(.t.) //Limpa o erro para nao travar a gravacao do cadastro
 		endif
-
-		if cTab == 'SA1'
-
-			M->A1_MSBLQL:= if(oJSON['estabelecimento']['situacao_cadastral'] == 'Ativa','2','1')
-			If ExistTrigger('A1_MSBLQL')
-				RunTrigger(1,Nil,Nil,,'A1_MSBLQL')
-			Endif
-
-			M->A1_CNAE:= oJSON['estabelecimento']['atividade_principal']['id']
-
-			CC3->(dbSetOrder(1))
-			if !CC3->(dbSeek(xFilial('CC3')+M->A1_CNAE))
-				reclock('CC3',.t.)
-				CC3->CC3_FILIAL	:= xFilial('CC3')
-				CC3->CC3_COD		:= oJSON['estabelecimento']['atividade_principal']['id']
-				CC3->CC3_DESC		:= upper(oJSON['estabelecimento']['atividade_principal']['descricao'])
-				CC3->CC3_CSECAO	:= oJSON['estabelecimento']['atividade_principal']['secao']
-				CC3->CC3_CDIVIS	:= oJSON['estabelecimento']['atividade_principal']['divisao']
-				CC3->CC3_CGRUPO	:= strTran(oJSON['estabelecimento']['atividade_principal']['grupo'],'.')
-				CC3->CC3_CCLASS	:= strTran(strTran(oJSON['estabelecimento']['atividade_principal']['classe'],'.'),'-')
-				CC3->(msUnlock())
-			endif
-			If ExistTrigger('A1_CNAE')
-				RunTrigger(1,Nil,Nil,,'A1_CNAE')
-			Endif
-
-			M->A1_PESSOA	:= 'J'
-			If ExistTrigger('A1_PESSOA')
-				RunTrigger(1,Nil,Nil,,'A1_CNAE')
-			Endif
-
-			if !empty(oJSON['estabelecimento']['pais']['id'])
-				CCH->(dbSetOrder(1))
-				if CCH->(dbSeek(xFilial('CCH')+ '0' + oJSON['estabelecimento']['pais']['id'] ))
-					M->A1_CODPAIS	:=  CCH->CCH_CODIGO
-					If ExistTrigger('A1_CODPAIS')
-						RunTrigger(1,Nil,Nil,,'A1_CODPAIS')
-					Endif
-				endif
-
-				SYA->(dbSetOrder(2))
-				if SYA->(dbSeek(xFilial('SYA')+ upper(oJSON['estabelecimento']['pais']['nome'])))
-					M->A1_PAIS	:= SYA->YA_CODGI
-					If ExistTrigger('A1_PAIS')
-						RunTrigger(1,Nil,Nil,,'A1_PAIS')
-					Endif
-				endif
-			endif
-
-			M->A1_NREDUZ := oJSON['estabelecimento']['nome_fantasia']
-
-			if empty(M->A1_NREDUZ) //Caso nao possua nome fantasia
-				M->A1_NREDUZ := avKey(cRet, 'A1_NREDUZ')
-			endif
-
-			If ExistTrigger('A1_NREDUZ')
-				RunTrigger(1,Nil,Nil,,'A1_NREDUZ')
-			Endif
-
-			M->A1_CEP		:= oJSON['estabelecimento']['cep']
-			If ExistTrigger('A1_CEP')
-				RunTrigger(1,Nil,Nil,,'A1_CEP')
-			Endif
-
-			M->A1_EST		:= oJSON['estabelecimento']['estado']['sigla']
-			If ExistTrigger('A1_EST')
-				RunTrigger(1,Nil,Nil,,'A1_EST')
-			Endif
-
-			M->A1_COD_MUN:= substring(cValToChar(oJSON['estabelecimento']['cidade']['ibge_id']),3,5)
-			If ExistTrigger('A1_COD_MUN')
-				RunTrigger(1,Nil,Nil,,'A1_COD_MUN')
-			Endif
-
-			M->A1_BAIRRO := oJSON['estabelecimento']['bairro']
-			If ExistTrigger('A1_BAIRRO')
-				RunTrigger(1,Nil,Nil,,'A1_BAIRRO')
-			Endif
-
-			M->A1_END    := oJSON['estabelecimento']['logradouro'] + ', ' + oJSON['estabelecimento']['numero']
-			If ExistTrigger('A1_END')
-				RunTrigger(1,Nil,Nil,,'A1_END')
-			Endif
-
-			M->A1_COMPLEM:= oJSON['estabelecimento']['complemento']
-			If ExistTrigger('A1_COMPLEM')
-				RunTrigger(1,Nil,Nil,,'A1_COMPLEM')
-			Endif
-
-			M->A1_DDD		:= oJSON['estabelecimento']['ddd1']
-			If ExistTrigger('A1_DDD')
-				RunTrigger(1,Nil,Nil,,'A1_DDD')
-			Endif
-
-			M->A1_TEL		:= oJSON['estabelecimento']['telefone1']
-			If ExistTrigger('A1_TEL')
-				RunTrigger(1,Nil,Nil,,'A1_TEL')
-			Endif
-
-			M->A1_FAX		:= oJSON['estabelecimento']['ddd_fax']+oJSON['estabelecimento']['fax']
-			If ExistTrigger('A1_FAX')
-				RunTrigger(1,Nil,Nil,,'A1_FAX')
-			Endif
-
-			M->A1_EMAIL	:= oJSON['estabelecimento']['email']
-			If ExistTrigger('A1_EMAIL')
-				RunTrigger(1,Nil,Nil,,'A1_EMAIL')
-			Endif
-
-			if valType(oJSON['simples']) == 'J'
-				M->A1_SIMPNAC:= if(oJSON['simples']['simples'] == 'Sim', '1', '2')
-			else
-				M->A1_SIMPNAC:= '2'
-			endif
-			If ExistTrigger('A1_SIMPNAC')
-				RunTrigger(1,Nil,Nil,,'A1_SIMPNAC')
-			Endif
-
-			for nX:=1 to len(oJSON['estabelecimento']['inscricoes_estaduais'])
-				if oJSON['estabelecimento']['estado']['id'] == oJSON['estabelecimento']['inscricoes_estaduais'][nX]['estado']['id']
-					M->A1_INSCR:= oJSON['estabelecimento']['inscricoes_estaduais'][nX]['inscricao_estadual']
-					If ExistTrigger('A1_INSCR')
-						RunTrigger(1,Nil,Nil,,'A1_INSCR')
-					Endif
-					EXIT
-				endif
-			next
-
-		elseIf cTab == 'SA2'
-
-			//MATA020 está em MVC
-			oModel := FWModelActive()
-
-			oModel:SetValue('SA2MASTER','A2_MSBLQL' ,if(oJSON['estabelecimento']['situacao_cadastral'] == 'Ativa','2','1'))
-
-			CC3->(dbSetOrder(1))
-			if !CC3->(dbSeek(xFilial('CC3')+oJSON['estabelecimento']['atividade_principal']['id']))
-				reclock('CC3',.t.)
-				CC3->CC3_FILIAL	:= xFilial('CC3')
-				CC3->CC3_COD		:= oJSON['estabelecimento']['atividade_principal']['id']
-				CC3->CC3_DESC		:= upper(oJSON['estabelecimento']['atividade_principal']['descricao'])
-				CC3->CC3_CSECAO	:= oJSON['estabelecimento']['atividade_principal']['secao']
-				CC3->CC3_CDIVIS	:= oJSON['estabelecimento']['atividade_principal']['divisao']
-				CC3->CC3_CGRUPO	:= strTran(oJSON['estabelecimento']['atividade_principal']['grupo'],'.')
-				CC3->CC3_CCLASS	:= strTran(strTran(oJSON['estabelecimento']['atividade_principal']['classe'],'.'),'-')
-				CC3->(msUnlock())
-			endif
-
-			oModel:SetValue('SA2MASTER','A2_CNAE',oJSON['estabelecimento']['atividade_principal']['id'])
-
-			oModel:SetValue('SA2MASTER','A2_TIPO', 'J')
-
-			if !empty(oJSON['estabelecimento']['pais']['id'])
-				CCH->(dbSetOrder(1))
-				if CCH->(dbSeek(xFilial('CCH') + '0' + oJSON['estabelecimento']['pais']['id']))
-					oModel:SetValue('SA2MASTER','A2_CODPAIS', allTrim(CCH->CCH_CODIGO))
-				endif
-
-				SYA->(dbSetOrder(2))
-				if SYA->(dbSeek(xFilial('SYA')+ upper(oJSON['estabelecimento']['pais']['nome'])))
-					oModel:SetValue('SA2MASTER','A2_PAIS', allTrim(SYA->YA_CODGI))
-				endif
-			endif
-
-			if !empty(oJSON['estabelecimento']['nome_fantasia'])
-				oModel:SetValue('SA2MASTER','A2_NREDUZ',oJSON['estabelecimento']['nome_fantasia'])
-			else
-				oModel:SetValue('SA2MASTER','A2_NREDUZ',avKey(cRet, 'A2_NREDUZ'))
-			endif
-
-			oModel:SetValue('SA2MASTER','A2_CEP', oJSON['estabelecimento']['cep'])
-
-			oModel:SetValue('SA2MASTER','A2_EST', oJSON['estabelecimento']['estado']['sigla'])
-
-			oModel:SetValue('SA2MASTER','A2_COD_MUN', substring(cValToChar(oJSON['estabelecimento']['cidade']['ibge_id']),3,5))
-
-			oModel:SetValue('SA2MASTER','A2_BAIRRO', oJSON['estabelecimento']['bairro'])
-
-			oModel:SetValue('SA2MASTER','A2_END',oJSON['estabelecimento']['logradouro'] + ', ' + oJSON['estabelecimento']['numero'])
-
-			oModel:SetValue('SA2MASTER','A2_COMPLEM', oJSON['estabelecimento']['complemento'])
-
-			oModel:SetValue('SA2MASTER','A2_DDD', oJSON['estabelecimento']['ddd1'])
-
-			oModel:SetValue('SA2MASTER','A2_TEL', oJSON['estabelecimento']['telefone1'])
-
-			oModel:SetValue('SA2MASTER','A2_FAX', oJSON['estabelecimento']['ddd_fax']+oJSON['estabelecimento']['fax'])
-
-			oModel:SetValue('SA2MASTER','A2_EMAIL', oJSON['estabelecimento']['email'])
-
-			if valType(oJSON['simples']) == 'J'
-				oModel:SetValue('SA2MASTER','A2_SIMPNAC', if(oJSON['simples']['simples'] == 'Sim', '1', '2'))
-			else
-				oModel:SetValue('SA2MASTER','A2_SIMPNAC', '2')
-			endif
-
-			for nX:=1 to len(oJSON['estabelecimento']['inscricoes_estaduais'])
-				if oJSON['estabelecimento']['estado']['id'] == oJSON['estabelecimento']['inscricoes_estaduais'][nX]['estado']['id']
-					oModel:SetValue('SA2MASTER','A2_INSCR', oJSON['estabelecimento']['inscricoes_estaduais'][nX]['inscricao_estadual'])
-					EXIT
-				endif
-			next
+	elseif type('M->' + cCampo) <> 'U'
+		&('M->' + cCampo):= xValor
+		if ExistTrigger(cCampo)
+			RunTrigger(1,Nil,Nil,,cCampo)
 		endif
+	endif
 
+return lOk
+
+static function jObj(oJSON,cChave)
+	local xRet:= nil
+
+	if valType(oJSON) == 'J'
+		xRet:= oJSON[cChave]
+	endif
+
+return if(valType(xRet) == 'J', xRet, nil)
+
+static function jStr(oJSON,cChave)
+	local xRet:= nil
+
+	if valType(oJSON) == 'J'
+		xRet:= oJSON[cChave]
+	endif
+
+	do case
+		case valType(xRet) == 'C'
+			return allTrim(xRet)
+		case valType(xRet) == 'N'
+			return cValToChar(xRet)
+	endcase
+
+return ''
+
+static function aviso(cMsg)
+	if isBlind()
+		conout('CNPJws - getCNPJ: ' + cMsg)
 	else
-		if lJob
-			conout('Erro ao consultar CNPJ: ' + oCNPJws:getError())
-		else
-			alert('Erro ao consultar CNPJ: ' + oCNPJws:getError())
-		endif
+		alert(cMsg)
 	endif
-
-return cRet
+return

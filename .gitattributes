@@ -1,0 +1,32 @@
+# Padrão: normaliza como texto e mantém CRLF no checkout (padrão Protheus/Windows)
+* text=auto eol=crlf
+
+# Fontes ADVPL/TLPP (Windows-1252). working-tree-encoding não é usado de propósito:
+# o repositório guarda os bytes originais, igual ao que o AppServer compila.
+*.prw  text eol=crlf diff=cpp
+*.prx  text eol=crlf diff=cpp
+*.prg  text eol=crlf diff=cpp
+*.tlpp text eol=crlf diff=cpp
+*.ch   text eol=crlf diff=cpp
+*.th   text eol=crlf diff=cpp
+*.aph  text eol=crlf
+*.apw  text eol=crlf
+*.ahu  text eol=crlf
+*.apl  text eol=crlf
+
+*.md   text eol=crlf
+*.json text eol=crlf
+
+# Binários
+*.rpo  binary
+*.ptm  binary
+*.pat  binary
+*.bmp  binary
+*.png  binary
+*.jpg  binary
+*.gif  binary
+*.ico  binary
+*.zip  binary
+*.dll  binary
+*.exe  binary
+*.so   binary
